@@ -6,11 +6,28 @@ Recall is a command manager that replaces shell history search with a context-aw
 
 ## Install
 
+### Homebrew (macOS)
+
+```bash
+brew tap cognisivelabs/tap
+brew install recall
+```
+
+### Go Install
+
 ```bash
 go install github.com/CognisiveLabs/recall-cli/cmd/recall@latest
 ```
 
-Requires Go 1.24+.
+Requires Go 1.24+. Make sure `$GOPATH/bin` (usually `~/go/bin`) is in your `PATH`.
+
+### From Source
+
+```bash
+git clone https://github.com/cognisivelabs/recall-cli.git
+cd recall-cli
+go install ./cmd/recall/
+```
 
 ## Quick Start
 
@@ -60,15 +77,90 @@ ssh {{user}}@{{host}}
 | `{{host}}` | Auto-resolves to hostname |
 | `{{home}}` | Auto-resolves to home directory |
 
-Auto-resolving placeholders fill in silently. Interactive ones prompt you before executing.
+Auto-resolving placeholders fill in silently. Interactive ones prompt you before executing. You can mix both in one command:
+
+```bash
+# {{branch}} resolves automatically, {{options:...}} shows a picker
+recall add "git push origin {{branch}} --env={{options:dev,staging,prod}}"
+```
 
 ### Workspace Awareness
 
 Assign a workspace filter to any command (e.g. `~/work/billing-*`). When you open `recall` from a matching directory, those commands sort to the top automatically.
 
-### Team Sync via Git
+```bash
+# Add a command scoped to a project directory
+recall add "make deploy" -d "Deploy billing service" -t "deploy"
+# Then edit it in the TUI (press 'e') and set workspace to: ~/work/billing-*
 
-Share commands with your team through a Git repo. Add a git source to your config:
+# Now when you're in ~/work/billing-service and open recall,
+# this command appears at the top
+cd ~/work/billing-service
+recall
+```
+
+### Team Sync via Git (Git-Ops)
+
+Share commands with your team through a Git repository. This is the core team workflow — your team maintains a shared repo of commands, and every developer syncs them locally.
+
+#### Step 1: Create a shared commands repo
+
+Create a Git repository (e.g. `github.com/your-org/ops-runbooks`) and add YAML files with your team's commands:
+
+```yaml
+# commands.yaml
+commands:
+  - pattern: "kubectl rollout restart deploy/{{service}} -n {{options:dev,staging,prod}}"
+    description: "Restart a deployment"
+    tags: [k8s, ops]
+  - pattern: "docker compose logs -f {{options:api,worker,redis}}"
+    description: "Tail service logs"
+    tags: [docker, debug]
+  - pattern: "aws s3 sync ./build s3://{{options:staging-bucket,prod-bucket}}"
+    description: "Deploy static assets to S3"
+    tags: [aws, deploy]
+```
+
+You can organize commands across multiple files and directories — recall scans all `.yaml` and `.yml` files in the repo (skipping `.git/`):
+
+```
+ops-runbooks/
+  k8s/
+    deployments.yaml
+    debugging.yaml
+  docker/
+    compose.yaml
+  aws/
+    s3.yaml
+    ecs.yaml
+```
+
+Both formats are supported:
+
+**Structured format** (with `commands:` key):
+```yaml
+commands:
+  - pattern: "kubectl get pods -n {{namespace}}"
+    description: "List pods"
+    tags: [k8s]
+```
+
+**Flat list format** (just an array):
+```yaml
+- pattern: "kubectl get pods -n {{namespace}}"
+  description: "List pods"
+  tags: [k8s]
+```
+
+#### Step 2: Configure the source
+
+Generate a config file if you don't have one:
+
+```bash
+recall config init
+```
+
+This creates `~/.config/recall/config.yaml`. Edit it to add your team's repo:
 
 ```yaml
 # ~/.config/recall/config.yaml
@@ -76,21 +168,61 @@ sources:
   - name: personal
     path: ~/.local/share/recall/recall.db
   - name: team-ops
-    git: git@github.com:my-org/ops-runbooks.git
+    git: git@github.com:your-org/ops-runbooks.git
 ```
 
-Then run `recall sync` to pull and import. The repo uses simple YAML files:
+You can add multiple git sources:
 
 ```yaml
-# commands.yaml
-commands:
-  - pattern: "kubectl rollout restart deploy/{{service}}"
-    description: "Restart a deployment"
-    tags: [k8s, ops]
-  - pattern: "docker compose -f docker-compose.{{options:dev,prod}}.yml up -d"
-    description: "Start services for an environment"
-    tags: [docker]
+sources:
+  - name: personal
+    path: ~/.local/share/recall/recall.db
+  - name: team-ops
+    git: git@github.com:your-org/ops-runbooks.git
+  - name: team-infra
+    git: git@github.com:your-org/infra-commands.git
+  - name: community
+    git: https://github.com/someone/awesome-commands.git
 ```
+
+#### Step 3: Sync
+
+```bash
+recall sync
+```
+
+On first run, this clones each git source. On subsequent runs, it pulls the latest changes. All commands are imported into your local SQLite database with the source name as a label.
+
+```
+$ recall sync
+Syncing team-ops...
+Imported 12 commands from team-ops
+Syncing team-infra...
+Imported 5 commands from team-infra
+Sync complete.
+```
+
+#### Step 4: Use synced commands
+
+Synced commands appear in the TUI dashboard with a source badge (e.g. `⟨team-ops⟩`). You can filter by source:
+
+```bash
+recall list -s team-ops        # list only team-ops commands
+recall list -s team-infra      # list only infra commands
+recall run "rollout" -t k8s    # search across all sources
+```
+
+#### The team workflow
+
+```
+1. Developer adds a new command to the shared repo
+2. Team reviews via Pull Request
+3. PR gets merged
+4. Every developer runs `recall sync` to get the update
+5. New command appears in everyone's dashboard
+```
+
+This keeps your team's tribal knowledge in version control — searchable, reviewable, and always up to date.
 
 ### Usage Tracking
 
@@ -107,8 +239,15 @@ eval "$(recall init zsh)"   # or bash
 This gives you:
 
 - **Ctrl+Space** / **Ctrl+R** — open the dashboard as a shell widget
-- **`recall save`** — captures the last command from shell history
+- **`recall save`** — captures the last command from shell history (via the shell wrapper, not history file)
 - Selected commands execute directly in your shell
+
+To verify it loaded:
+
+```bash
+source ~/.zshrc
+# You should see: "Recall Shell Integration Loaded"
+```
 
 ## Commands
 
@@ -123,6 +262,7 @@ This gives you:
 | `recall sync` | Pull git sources and import commands |
 | `recall config init` | Generate a starter config file |
 | `recall config show` | Print current configuration |
+| `recall config path` | Print config file location |
 | `recall init [shell]` | Print shell integration script |
 
 ### Aliases
@@ -140,6 +280,7 @@ recall list -t docker                               # filter by tag
 recall list -s team-ops                             # filter by source
 recall list --json                                  # JSON output
 recall delete 3 -f                                  # skip confirmation
+recall save -c "explicit command"                   # save a specific command
 ```
 
 ## Architecture
@@ -150,7 +291,7 @@ internal/
   config/            YAML config loading (~/.config/recall/)
   gitops/            Git sync + YAML import
   placeholders/      {{placeholder}} parsing and auto-resolution
-  shell/             Shell history reading, integration scripts, exec
+  shell/             Shell history, integration scripts, command execution
   storage/           SQLite storage layer + tag utilities
   tui/               Bubbletea TUI (dashboard, form, resolver, styles)
   workspace/         Working directory detection and matching
@@ -158,9 +299,10 @@ internal/
 
 **Tech stack:** Go, Cobra, Bubbletea, Lipgloss, SQLite.
 
-**Data storage:** `~/.local/share/recall/recall.db` (SQLite).
-
-**Config:** `~/.config/recall/config.yaml` (optional).
+**Data locations:**
+- Database: `~/.local/share/recall/recall.db`
+- Config: `~/.config/recall/config.yaml`
+- Synced repos: `~/.local/share/recall/sources/`
 
 ## License
 
