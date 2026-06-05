@@ -40,16 +40,12 @@ changelog:
       - "^test:"
       - "^chore:"
 
-homebrew:
-  - repository:
+homebrew_casks:
+  - name: recall
+    repository:
       owner: cognisivelabs
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
+    directory: Casks
     homepage: "https://github.com/cognisivelabs/recall-cli"
     description: "Your external memory for the terminal. Save, search, and execute commands."
-    license: "MIT"
-    install: |
-      bin.install "recall"
-    test: |
-      system bin/"recall", "--help"
