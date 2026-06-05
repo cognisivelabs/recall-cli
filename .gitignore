@@ -20,9 +20,9 @@ go.work
 # VS Code
 .vscode/
 
-# Recall CLI
-recall
+# Recall CLI binary
+/recall
 dist/
 tmp/
 *.db
-cmd/.DS_Store
+.DS_Store

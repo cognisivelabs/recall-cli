@@ -9,8 +9,7 @@ before:
 
 builds:
   - id: recall
-    dir: .
-    main: ./cmd/recall
+    main: ./cmd/recall/
     binary: recall
     env:
       - CGO_ENABLED=1
