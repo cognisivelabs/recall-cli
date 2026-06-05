@@ -9,31 +9,20 @@ before:
 
 builds:
   - id: recall
-    main: ./cmd/recall/
+    dir: .
+    main: ./cmd/recall
     binary: recall
     env:
       - CGO_ENABLED=1
     goos:
       - darwin
-      - linux
     goarch:
       - amd64
       - arm64
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}}
-    overrides:
-      - goos: linux
-        goarch: amd64
-        env:
-          - CGO_ENABLED=1
-          - CC=x86_64-linux-gnu-gcc
-      - goos: linux
-        goarch: arm64
-        env:
-          - CGO_ENABLED=1
-          - CC=aarch64-linux-gnu-gcc
+      - -s -w
 
 archives:
   - id: default
@@ -51,7 +40,7 @@ changelog:
       - "^test:"
       - "^chore:"
 
-brews:
+homebrew:
   - repository:
       owner: cognisivelabs
       name: homebrew-tap
