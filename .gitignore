@@ -25,3 +25,4 @@ recall
 dist/
 tmp/
 *.db
+cmd/.DS_Store
