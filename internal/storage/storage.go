@@ -17,9 +17,11 @@ type Command struct {
 
 type Storage interface {
 	List() ([]Command, error)
+	GetByID(id int) (*Command, error)
+	GetByPattern(pattern string) (*Command, error)
 	Delete(id int) error
 	Update(c Command) error
 	Upsert(c Command) error
-	GetByPattern(pattern string) (*Command, error)
+	RecordUsage(id int) error
 	Close() error
 }

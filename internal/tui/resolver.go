@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/CognisiveLabs/recall-cli/internal/placeholders"
 
@@ -11,13 +13,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// ResolvingModel handles the step-by-step resolution of placeholders
 type ResolvingModel struct {
 	originalCommand string
 	currentCommand  string
 	pending         []placeholders.Placeholder
 
-	// Input types
 	textInput textinput.Model
 	listInput list.Model
 
@@ -26,12 +26,31 @@ type ResolvingModel struct {
 	done      bool
 }
 
+func (m ResolvingModel) Done() bool      { return m.done }
+func (m ResolvingModel) Resolved() string { return m.currentCommand }
+
+func NewResolverProgram(m ResolvingModel) *tea.Program {
+	return tea.NewProgram(m, tea.WithOutput(os.Stderr))
+}
+
 func NewResolvingModel(cmd string) ResolvingModel {
-	pending := placeholders.Parse(cmd)
+	// Auto-resolve first, then only prompt for remaining
+	resolved, remaining := placeholders.AutoResolve(cmd)
+	m := ResolvingModel{
+		originalCommand: cmd,
+		currentCommand:  resolved,
+		pending:         remaining,
+		textInput:       textinput.New(),
+	}
+	m.setupNextInput()
+	return m
+}
+
+func NewResolvingModelFromParsed(cmd string, remaining []placeholders.Placeholder) ResolvingModel {
 	m := ResolvingModel{
 		originalCommand: cmd,
 		currentCommand:  cmd,
-		pending:         pending,
+		pending:         remaining,
 		textInput:       textinput.New(),
 	}
 	m.setupNextInput()
@@ -52,21 +71,30 @@ func (m *ResolvingModel) setupNextInput() {
 			items[i] = optionItem(opt)
 		}
 
-		l := list.New(items, list.NewDefaultDelegate(), 0, 0)
-		l.Title = "Select " + p.Key
+		delegate := list.NewDefaultDelegate()
+		delegate.Styles.SelectedTitle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
+		delegate.Styles.NormalTitle = lipgloss.NewStyle().Foreground(colorHighlight)
+
+		l := list.New(items, delegate, 40, 10)
+		l.Title = "Select: " + p.Key
+		l.Styles.Title = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
 		l.SetShowStatusBar(false)
 		l.SetFilteringEnabled(false)
+		l.SetShowHelp(false)
 		m.listInput = l
 	} else {
 		m.isOptions = false
-		m.textInput.Placeholder = "Enter " + p.Key
-		m.textInput.Prompt = p.Key + " > "
+		m.textInput = textinput.New()
+		m.textInput.Placeholder = "enter value"
+		m.textInput.Prompt = p.Key + " ▸ "
+		m.textInput.PromptStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
+		m.textInput.Cursor.Style = lipgloss.NewStyle().Foreground(colorAccent)
+		m.textInput.TextStyle = lipgloss.NewStyle().Foreground(colorHighlight)
 		m.textInput.Focus()
 		m.textInput.SetValue("")
 	}
 }
 
-// Simple list item adapter
 type optionItem string
 
 func (o optionItem) FilterValue() string { return string(o) }
@@ -84,7 +112,6 @@ func (m ResolvingModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 
-	// Quit keys
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		switch msg.String() {
 		case "ctrl+c", "esc":
@@ -93,12 +120,14 @@ func (m ResolvingModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.isOptions {
-		// List update
 		if msg, ok := msg.(tea.KeyMsg); ok && msg.String() == "enter" {
 			selected := m.listInput.SelectedItem()
 			if selected != nil {
 				val := selected.FilterValue()
 				m.resolveCurrent(val)
+			}
+			if m.done {
+				return m, tea.Quit
 			}
 			return m, nil
 		}
@@ -106,10 +135,12 @@ func (m ResolvingModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.listInput, cmd = m.listInput.Update(msg)
 		return m, cmd
 	} else {
-		// Text update
 		if msg, ok := msg.(tea.KeyMsg); ok && msg.String() == "enter" {
 			val := m.textInput.Value()
 			m.resolveCurrent(val)
+			if m.done {
+				return m, tea.Quit
+			}
 			return m, nil
 		}
 		m.textInput, cmd = m.textInput.Update(msg)
@@ -119,22 +150,26 @@ func (m ResolvingModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *ResolvingModel) resolveCurrent(val string) {
 	p := m.pending[0]
-	// Replace ALL instances or just one? Let's say one for now, or all if same name?
-	// The parser found instances. If specific logic needed, use parser.
-	// Simple replacement:
 	m.currentCommand = placeholders.Replace(m.currentCommand, p, val)
-
-	// Remove this pending, and any others that were identical?
-	// For simplicity, just pop first. User might have {{file}} twice and want different values?
-	// Usually repeated placeholder means same value.
-	// Let's just pop the head for now.
 	m.pending = m.pending[1:]
 	m.setupNextInput()
 }
 
 func (m ResolvingModel) View() string {
 	if m.done {
-		return fmt.Sprintf("Ready: %s", m.currentCommand)
+		return ""
+	}
+
+	remaining := fmt.Sprintf("%d remaining", len(m.pending))
+
+	// Highlight placeholders in command preview
+	preview := m.currentCommand
+	for _, p := range m.pending {
+		preview = strings.Replace(preview,
+			p.FullMatch,
+			lipgloss.NewStyle().Foreground(colorWarn).Bold(true).Render(p.FullMatch),
+			1,
+		)
 	}
 
 	var content string
@@ -144,13 +179,14 @@ func (m ResolvingModel) View() string {
 		content = m.textInput.View()
 	}
 
-	return fmt.Sprintf(
-		"Resolving Placeholders...\n\nCommand: %s\n\n%s",
-		highlightPlaceholders(m.currentCommand),
-		content,
-	)
-}
+	title := headerStyle.Render("recall · resolve placeholders")
+	counter := statusDesc.Render(remaining)
 
-func highlightPlaceholders(s string) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(s)
+	return lipgloss.NewStyle().Padding(1, 2).Render(
+		title + "  " + counter + "\n\n" +
+			detailSection.Render("COMMAND") + "\n" +
+			detailCode.Render(preview) + "\n\n" +
+			content + "\n\n" +
+			formHint.Render("enter confirm · esc cancel"),
+	)
 }

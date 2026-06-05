@@ -89,9 +89,9 @@ recall() {
 func PrintInitScript(shellType string) {
 	switch shellType {
 	case "zsh":
-		fmt.Println(ZshScript)
+		fmt.Print(ZshScript)
 	case "bash":
-		fmt.Println(BashScript)
+		fmt.Print(BashScript)
 	default:
 		fmt.Printf("# Unsupported shell: %s. Defaulting to Zsh.\n%s", shellType, ZshScript)
 	}

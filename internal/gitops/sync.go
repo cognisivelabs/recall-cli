@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 
 	"github.com/CognisiveLabs/recall-cli/internal/config"
+	"github.com/CognisiveLabs/recall-cli/internal/storage"
 )
 
-func Sync(cfg *config.Config) error {
+func Sync(cfg *config.Config, store storage.Storage) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -25,30 +26,33 @@ func Sync(cfg *config.Config) error {
 			continue
 		}
 
-		fmt.Printf("Syncing %s...\n", source.Name)
+		fmt.Fprintf(os.Stderr, "Syncing %s...\n", source.Name)
 		repoPath := filepath.Join(sourcesDir, source.Name)
 
 		if _, err := os.Stat(repoPath); os.IsNotExist(err) {
-			// Clone
 			cmd := exec.Command("git", "clone", source.Git, repoPath)
-			cmd.Stdout = os.Stdout
+			cmd.Stdout = os.Stderr
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
-				fmt.Printf("Failed to clone %s: %v\n", source.Name, err)
+				fmt.Fprintf(os.Stderr, "Failed to clone %s: %v\n", source.Name, err)
+				continue
 			}
 		} else {
-			// Pull
-			cmd := exec.Command("git", "pull")
-			cmd.Dir = repoPath
-			cmd.Stdout = os.Stdout
+			cmd := exec.Command("git", "-C", repoPath, "pull")
+			cmd.Stdout = os.Stderr
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
-				fmt.Printf("Failed to pull %s: %v\n", source.Name, err)
+				fmt.Fprintf(os.Stderr, "Failed to pull %s: %v\n", source.Name, err)
+				continue
 			}
 		}
 
-		// TODO: After sync, scan the repo for commands and import them into SQLite
-		// For MVP, we just ensure the repo is synced.
+		imported, err := ImportFromRepo(store, repoPath, source.Name)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to import from %s: %v\n", source.Name, err)
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "Imported %d commands from %s\n", imported, source.Name)
 	}
 
 	return nil
