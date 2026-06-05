@@ -13,7 +13,7 @@ env:
 
 jobs:
   release:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,3 +54,29 @@ jobs:
           repository: cognisivelabs/homebrew-tap
           event-type: update-formula
           client-payload: '{"version": "${{ steps.tag.outputs.version }}", "sha256": "${{ steps.sha.outputs.sha256 }}"}'
+
+  update-scoop:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag version
+        id: tag
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Get checksums
+        id: sha
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          WIN64_SHA=$(curl -sL "${BASE}/recall_windows_amd64.zip" | sha256sum | cut -d' ' -f1)
+          WIN_ARM_SHA=$(curl -sL "${BASE}/recall_windows_arm64.zip" | sha256sum | cut -d' ' -f1)
+          echo "win64=$WIN64_SHA" >> $GITHUB_OUTPUT
+          echo "winarm=$WIN_ARM_SHA" >> $GITHUB_OUTPUT
+
+      - name: Update Scoop manifest
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          repository: cognisivelabs/scoop-bucket
+          event-type: update-manifest
+          client-payload: '{"version": "${{ steps.tag.outputs.version }}", "sha256_64": "${{ steps.sha.outputs.win64 }}", "sha256_arm64": "${{ steps.sha.outputs.winarm }}"}'

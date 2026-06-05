@@ -6,20 +6,31 @@ Recall is a command manager that replaces shell history search with a context-aw
 
 ## Install
 
-### Homebrew (macOS)
+### Homebrew (macOS / Linux)
 
 ```bash
 brew tap cognisivelabs/tap
 brew install recall
 ```
 
-### Go Install
+### Scoop (Windows)
+
+```powershell
+scoop bucket add cognisivelabs https://github.com/cognisivelabs/scoop-bucket
+scoop install recall
+```
+
+### Go Install (all platforms)
 
 ```bash
 go install github.com/CognisiveLabs/recall-cli/cmd/recall@latest
 ```
 
 Requires Go 1.24+. Make sure `$GOPATH/bin` (usually `~/go/bin`) is in your `PATH`.
+
+### Download Binary
+
+Pre-built binaries for macOS, Linux, and Windows (amd64 and arm64) are available on the [Releases](https://github.com/cognisivelabs/recall-cli/releases) page.
 
 ### From Source
 

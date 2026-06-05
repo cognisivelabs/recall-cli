@@ -12,9 +12,11 @@ builds:
     main: ./cmd/recall/
     binary: recall
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     goos:
       - darwin
+      - linux
+      - windows
     goarch:
       - amd64
       - arm64
@@ -26,6 +28,9 @@ builds:
 archives:
   - id: default
     formats: ['tar.gz']
+    format_overrides:
+      - goos: windows
+        formats: ['zip']
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
