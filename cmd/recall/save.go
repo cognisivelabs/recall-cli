@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/CognisiveLabs/recall-cli/internal/shell"
@@ -18,7 +17,7 @@ func NewSaveCmd(store storage.Storage) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "save",
 		Short: "Save the last executed command",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			var lastCmd string
 			var err error
 
@@ -27,38 +26,29 @@ func NewSaveCmd(store storage.Storage) *cobra.Command {
 			} else {
 				lastCmd, err = shell.GetLastCommand()
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error reading history: %v\n", err)
-					os.Exit(1)
+					return fmt.Errorf("reading shell history: %w", err)
 				}
 			}
 
 			lastCmd = strings.TrimSpace(lastCmd)
-			fmt.Fprintf(os.Stderr, "Last command: %s\n", lastCmd)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Last command: %s\n", lastCmd)
 
-			existing, _ := store.GetByPattern(lastCmd)
+			existing, err := store.GetByPattern(lastCmd)
+			if err != nil {
+				return fmt.Errorf("checking for existing command: %w", err)
+			}
+
 			if existing != nil {
-				fmt.Fprintf(os.Stderr, "Already saved as #%d: %s\n", existing.ID, existing.Description)
-				fmt.Fprintf(os.Stderr, "Edit it? [y/N] ")
-				var input string
-				fmt.Scanln(&input)
-				input = strings.ToLower(strings.TrimSpace(input))
-				if input != "y" && input != "yes" {
-					fmt.Fprintln(os.Stderr, "Skipped.")
-					return
+				prompt := fmt.Sprintf("Already saved as #%d: %s\nEdit it? [y/N] ", existing.ID, existing.Description)
+				if !confirmFromReader(cmd.InOrStdin(), cmd.ErrOrStderr(), prompt) {
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Skipped.")
+					return nil
 				}
-				// Open form pre-filled with existing data so user can edit
-				if err := tui.StartForm(store, existing); err != nil {
-					fmt.Fprintf(os.Stderr, "Error running form: %v\n", err)
-					os.Exit(1)
-				}
-				return
+				return tui.StartForm(store, existing)
 			}
 
 			cmdObj := &storage.Command{Pattern: lastCmd}
-			if err := tui.StartForm(store, cmdObj); err != nil {
-				fmt.Fprintf(os.Stderr, "Error running form: %v\n", err)
-				os.Exit(1)
-			}
+			return tui.StartForm(store, cmdObj)
 		},
 	}
 	cmd.Flags().StringVarP(&lastCmdFlag, "last-cmd", "c", "", "Explicitly set the command to save")

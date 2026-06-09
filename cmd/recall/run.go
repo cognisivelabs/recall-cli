@@ -26,17 +26,15 @@ func NewRunCmd(store storage.Storage) *cobra.Command {
   recall run docker --dry
   recall run logs -t k8s`,
 		Args: cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			query := strings.Join(args, " ")
 
 			match, err := findBestMatch(store, query, tagFilter)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("searching commands: %w", err)
 			}
 			if match == nil {
-				fmt.Fprintf(os.Stderr, "No command matching %q found.\n", query)
-				os.Exit(1)
+				return fmt.Errorf("no command matching %q found", query)
 			}
 
 			if match.ID != 0 {
@@ -53,24 +51,30 @@ func NewRunCmd(store storage.Storage) *cobra.Command {
 					p := tui.NewResolverProgram(rm)
 					result, err := p.Run()
 					if err != nil {
-						fmt.Fprintf(os.Stderr, "Error resolving placeholders: %v\n", err)
-						os.Exit(1)
+						return fmt.Errorf("resolving placeholders: %w", err)
 					}
 					if m, ok := result.(tui.ResolvingModel); ok && m.Done() {
 						resolved = m.Resolved()
 					} else {
 						fmt.Fprintln(os.Stderr, "Cancelled.")
-						return
+						return nil
 					}
 				}
 			}
 
 			if dryRun {
 				fmt.Println(resolved)
-				return
+				return nil
 			}
 
-			shell.Execute(resolved)
+			exitCode, err := shell.Execute(resolved)
+			if err != nil {
+				return fmt.Errorf("executing command: %w", err)
+			}
+			if exitCode != 0 {
+				os.Exit(exitCode)
+			}
+			return nil
 		},
 	}
 
@@ -79,6 +83,9 @@ func NewRunCmd(store storage.Storage) *cobra.Command {
 	return cmd
 }
 
+// findBestMatch searches for a command using fuzzy matching.
+// Priority: exact match > substring in pattern > fuzzy score across pattern+description+tags.
+// Returns the highest-scoring match, or nil if nothing scores above threshold.
 func findBestMatch(store storage.Storage, query string, tagFilter string) (*storage.Command, error) {
 	cmds, err := store.List()
 	if err != nil {
@@ -86,40 +93,112 @@ func findBestMatch(store storage.Storage, query string, tagFilter string) (*stor
 	}
 
 	cmds = storage.FilterByTag(cmds, tagFilter)
-	query = strings.ToLower(query)
+	queryLower := strings.ToLower(query)
 
-	// Exact pattern match
+	// Exact pattern match (highest priority)
 	for i := range cmds {
-		if strings.ToLower(cmds[i].Pattern) == query {
+		if strings.ToLower(cmds[i].Pattern) == queryLower {
 			return &cmds[i], nil
 		}
 	}
 
-	// Substring match on pattern
-	var candidates []storage.Command
-	for _, c := range cmds {
-		if strings.Contains(strings.ToLower(c.Pattern), query) {
-			candidates = append(candidates, c)
-		}
+	// Score all commands with fuzzy matching
+	type scored struct {
+		cmd   storage.Command
+		score int
 	}
-	if len(candidates) == 1 {
-		return &candidates[0], nil
-	}
-	if len(candidates) > 1 {
-		fmt.Fprintf(os.Stderr, "Multiple matches for %q:\n", query)
-		for i, c := range candidates {
-			fmt.Fprintf(os.Stderr, "  [%d] %s — %s\n", i+1, c.Pattern, c.Description)
+	var results []scored
+
+	for _, cmd := range cmds {
+		patternLower := strings.ToLower(cmd.Pattern)
+		descLower := strings.ToLower(cmd.Description)
+		tagsLower := strings.ToLower(cmd.Tags)
+
+		score := 0
+
+		// Substring match on pattern (high value)
+		if strings.Contains(patternLower, queryLower) {
+			score += 100
 		}
-		return &candidates[0], nil
+
+		// Fuzzy character match on pattern
+		score += fuzzyScore(queryLower, patternLower) * 2
+
+		// Substring match on description/tags (lower value)
+		if strings.Contains(descLower, queryLower) {
+			score += 50
+		}
+		if strings.Contains(tagsLower, queryLower) {
+			score += 30
+		}
+
+		// Fuzzy match on description
+		score += fuzzyScore(queryLower, descLower)
+
+		if score > 0 {
+			results = append(results, scored{cmd: cmd, score: score})
+		}
 	}
 
-	// Substring match on description/tags
-	for i := range cmds {
-		searchable := strings.ToLower(cmds[i].Description + " " + cmds[i].Tags)
-		if strings.Contains(searchable, query) {
-			return &cmds[i], nil
+	if len(results) == 0 {
+		return nil, nil
+	}
+
+	// Sort by score descending
+	for i := 0; i < len(results)-1; i++ {
+		for j := i + 1; j < len(results); j++ {
+			if results[j].score > results[i].score {
+				results[i], results[j] = results[j], results[i]
+			}
 		}
 	}
 
-	return nil, nil
+	if len(results) > 1 && results[0].score == results[1].score {
+		limit := len(results)
+		if limit > 5 {
+			limit = 5
+		}
+		top := make([]storage.Command, limit)
+		for i := 0; i < limit; i++ {
+			top[i] = results[i].cmd
+		}
+		printMatchList(os.Stderr, query, top)
+	}
+
+	return &results[0].cmd, nil
+}
+
+// fuzzyScore returns a score for how well the query characters appear in order within the target.
+// Higher score = better match. Returns 0 if not all query chars are found in order.
+func fuzzyScore(query, target string) int {
+	if len(query) == 0 {
+		return 0
+	}
+
+	qi := 0
+	score := 0
+	prevMatchIdx := -1
+
+	for ti := 0; ti < len(target) && qi < len(query); ti++ {
+		if target[ti] == query[qi] {
+			score += 10
+			// Bonus for consecutive matches
+			if prevMatchIdx == ti-1 {
+				score += 5
+			}
+			// Bonus for matching at word boundaries (after space, /, -, _)
+			if ti == 0 || target[ti-1] == ' ' || target[ti-1] == '/' || target[ti-1] == '-' || target[ti-1] == '_' {
+				score += 8
+			}
+			prevMatchIdx = ti
+			qi++
+		}
+	}
+
+	// All query characters must be found in order
+	if qi < len(query) {
+		return 0
+	}
+
+	return score
 }

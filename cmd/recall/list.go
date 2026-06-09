@@ -23,11 +23,10 @@ func NewListCmd(store storage.Storage) *cobra.Command {
   recall list -t docker
   recall list -s team-ops
   recall list --json`,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			cmds, err := store.List()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("listing commands: %w", err)
 			}
 
 			filtered := storage.FilterByTag(cmds, tagFilter)
@@ -43,15 +42,16 @@ func NewListCmd(store storage.Storage) *cobra.Command {
 
 			if len(filtered) == 0 {
 				fmt.Fprintln(os.Stderr, "No commands found.")
-				return
+				return nil
 			}
 
 			if jsonOutput {
 				printJSON(filtered)
-				return
+				return nil
 			}
 
 			printTable(filtered)
+			return nil
 		},
 	}
 

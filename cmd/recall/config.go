@@ -18,12 +18,12 @@ func NewConfigCmd() *cobra.Command {
 	cmd.AddCommand(&cobra.Command{
 		Use:   "init",
 		Short: "Generate a starter config file",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := config.WriteDefault(); err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("creating config: %w", err)
 			}
 			fmt.Fprintf(os.Stderr, "Config created at %s\n", config.ConfigPath())
+			return nil
 		},
 	})
 
@@ -38,11 +38,10 @@ func NewConfigCmd() *cobra.Command {
 	cmd.AddCommand(&cobra.Command{
 		Use:   "show",
 		Short: "Print the current configuration",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.LoadConfig()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("loading config: %w", err)
 			}
 
 			fmt.Fprintf(os.Stderr, "Config: %s\n\n", config.ConfigPath())
@@ -55,6 +54,7 @@ func NewConfigCmd() *cobra.Command {
 					fmt.Printf("  - %s (path: %s)\n", s.Name, s.Path)
 				}
 			}
+			return nil
 		},
 	})
 

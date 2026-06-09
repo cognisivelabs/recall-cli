@@ -15,19 +15,18 @@ func NewSyncCmd(store storage.Storage) *cobra.Command {
 	return &cobra.Command{
 		Use:   "sync",
 		Short: "Sync commands from git sources",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.LoadConfig()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("loading config: %w", err)
 			}
 
 			if err := gitops.Sync(cfg, store); err != nil {
-				fmt.Fprintf(os.Stderr, "Error syncing: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("syncing: %w", err)
 			}
 
 			fmt.Fprintln(os.Stderr, "Sync complete.")
+			return nil
 		},
 	}
 }
