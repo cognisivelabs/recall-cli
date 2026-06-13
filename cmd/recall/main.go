@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -11,6 +12,13 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
+
+// exitCodeError is a sentinel error that carries a non-zero process exit code.
+// Sub-commands return this instead of calling os.Exit directly, keeping RunE
+// functions testable. main() is the only place that converts it to os.Exit.
+type exitCodeError int
+
+func (e exitCodeError) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
 
 // main initializes the SQLite store, wires up all sub-commands, and hands off to Cobra.
 // If the user runs `recall` with no sub-command the TUI launches; if the result is a
@@ -28,30 +36,29 @@ func main() {
 		Short:        "Recall: Your external memory for the terminal",
 		Long:         `Recall is a command manager that replaces history search with a context-aware, team-syncable dashboard.`,
 		SilenceUsage: true,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			selected, err := tui.Start(store)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("running TUI: %w", err)
 			}
 			if selected == "" {
-				return
+				return nil
 			}
 
-			// If stdout is a terminal, user is running directly — execute the command.
-			// If stdout is piped (shell widget), just print so the wrapper can eval it.
+			// If stdout is a terminal the user is running recall directly — execute.
+			// If stdout is piped (shell widget) just print so the wrapper can eval it.
 			if term.IsTerminal(int(os.Stdout.Fd())) {
 				exitCode, err := shell.Execute(selected)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "execution error: %v\n", err)
-					os.Exit(1)
+					return fmt.Errorf("execution error: %w", err)
 				}
 				if exitCode != 0 {
-					os.Exit(exitCode)
+					return exitCodeError(exitCode)
 				}
 			} else {
-				fmt.Println(selected)
+				fmt.Fprintln(cmd.OutOrStdout(), selected)
 			}
+			return nil
 		},
 	}
 
@@ -66,6 +73,10 @@ func main() {
 	rootCmd.AddCommand(NewInitCmd())
 
 	if err := rootCmd.Execute(); err != nil {
+		var ec exitCodeError
+		if errors.As(err, &ec) {
+			os.Exit(int(ec))
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

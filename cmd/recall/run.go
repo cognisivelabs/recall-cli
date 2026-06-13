@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/CognisiveLabs/recall-cli/internal/placeholders"
+	"github.com/CognisiveLabs/recall-cli/internal/search"
 	"github.com/CognisiveLabs/recall-cli/internal/shell"
 	"github.com/CognisiveLabs/recall-cli/internal/storage"
 	"github.com/CognisiveLabs/recall-cli/internal/tui"
@@ -33,7 +33,7 @@ func NewRunCmd(store storage.Storage) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := strings.Join(args, " ")
 
-			match, err := findBestMatch(store, query, tagFilter)
+			match, err := findBestMatch(store, query, tagFilter, cmd)
 			if err != nil {
 				return fmt.Errorf("searching commands: %w", err)
 			}
@@ -45,29 +45,16 @@ func NewRunCmd(store storage.Storage) *cobra.Command {
 				store.RecordUsage(match.ID)
 			}
 
-			resolved := match.Pattern
-
-			if placeholders.HasPlaceholders(resolved) {
-				var remaining []placeholders.Placeholder
-				resolved, remaining = placeholders.AutoResolve(resolved)
-				if len(remaining) > 0 {
-					rm := tui.NewResolvingModelFromParsed(resolved, remaining)
-					p := tui.NewResolverProgram(rm)
-					result, err := p.Run()
-					if err != nil {
-						return fmt.Errorf("resolving placeholders: %w", err)
-					}
-					if m, ok := result.(tui.ResolvingModel); ok && m.Done() {
-						resolved = m.Resolved()
-					} else {
-						fmt.Fprintln(os.Stderr, "Cancelled.")
-						return nil
-					}
-				}
+			resolved, cancelled, err := resolvePlaceholders(cmd, match.Pattern)
+			if err != nil {
+				return err
+			}
+			if cancelled {
+				return nil
 			}
 
 			if dryRun {
-				fmt.Println(resolved)
+				fmt.Fprintln(cmd.OutOrStdout(), resolved)
 				return nil
 			}
 
@@ -76,7 +63,7 @@ func NewRunCmd(store storage.Storage) *cobra.Command {
 				return fmt.Errorf("executing command: %w", err)
 			}
 			if exitCode != 0 {
-				os.Exit(exitCode)
+				return exitCodeError(exitCode)
 			}
 			return nil
 		},
@@ -87,128 +74,61 @@ func NewRunCmd(store storage.Storage) *cobra.Command {
 	return cmd
 }
 
-// findBestMatch finds the best saved command for a search query.
-// Priority order: exact pattern match > substring in pattern > fuzzy score across
-// pattern + description + tags. Returns nil when nothing scores above zero.
-// When there is a tie at the top, it prints the tied candidates to stderr so
-// the user can see what matched, then returns the first one anyway.
-// Priority: exact match > substring in pattern > fuzzy score across pattern+description+tags.
-// Returns the highest-scoring match, or nil if nothing scores above threshold.
-func findBestMatch(store storage.Storage, query string, tagFilter string) (*storage.Command, error) {
+// findBestMatch looks up the best command for query, filtered by tagFilter.
+// Prints an ambiguity notice to stderr when multiple commands tie at the top score.
+func findBestMatch(store storage.Storage, query, tagFilter string, cmd *cobra.Command) (*storage.Command, error) {
 	cmds, err := store.List()
 	if err != nil {
 		return nil, err
 	}
 
 	cmds = storage.FilterByTag(cmds, tagFilter)
-	queryLower := strings.ToLower(query)
-
-	// Exact pattern match (highest priority)
-	for i := range cmds {
-		if strings.ToLower(cmds[i].Pattern) == queryLower {
-			return &cmds[i], nil
-		}
-	}
-
-	// Score all commands with fuzzy matching
-	type scored struct {
-		cmd   storage.Command
-		score int
-	}
-	var results []scored
-
-	for _, cmd := range cmds {
-		patternLower := strings.ToLower(cmd.Pattern)
-		descLower := strings.ToLower(cmd.Description)
-		tagsLower := strings.ToLower(cmd.Tags)
-
-		score := 0
-
-		// Substring match on pattern (high value)
-		if strings.Contains(patternLower, queryLower) {
-			score += 100
-		}
-
-		// Fuzzy character match on pattern
-		score += fuzzyScore(queryLower, patternLower) * 2
-
-		// Substring match on description/tags (lower value)
-		if strings.Contains(descLower, queryLower) {
-			score += 50
-		}
-		if strings.Contains(tagsLower, queryLower) {
-			score += 30
-		}
-
-		// Fuzzy match on description
-		score += fuzzyScore(queryLower, descLower)
-
-		if score > 0 {
-			results = append(results, scored{cmd: cmd, score: score})
-		}
-	}
-
+	results := search.FindBest(cmds, query)
 	if len(results) == 0 {
 		return nil, nil
 	}
 
-	// Sort by score descending
-	for i := 0; i < len(results)-1; i++ {
-		for j := i + 1; j < len(results); j++ {
-			if results[j].score > results[i].score {
-				results[i], results[j] = results[j], results[i]
-			}
-		}
-	}
-
-	if len(results) > 1 && results[0].score == results[1].score {
+	// Notify the user when the top two results tie (ambiguous match).
+	if len(results) > 1 && results[0].Score == results[1].Score {
 		limit := len(results)
 		if limit > 5 {
 			limit = 5
 		}
 		top := make([]storage.Command, limit)
-		for i := 0; i < limit; i++ {
-			top[i] = results[i].cmd
+		for i := range top {
+			top[i] = results[i].Command
 		}
-		printMatchList(os.Stderr, query, top)
+		printMatchList(cmd.ErrOrStderr(), query, top)
 	}
 
-	return &results[0].cmd, nil
+	return &results[0].Command, nil
 }
 
-// fuzzyScore returns a score for how well query matches target.
-// All query characters must appear in order inside target; returns 0 otherwise.
-// Bonuses are awarded for consecutive matches and word-boundary matches (after space, /, -, _).
-// Higher score means a stronger match.
-func fuzzyScore(query, target string) int {
-	if len(query) == 0 {
-		return 0
+// resolvePlaceholders interactively fills any {{placeholder}} tokens in pattern.
+// Returns the resolved command string, a cancelled flag (user pressed esc), and
+// any unexpected error.
+func resolvePlaceholders(cmd *cobra.Command, pattern string) (resolved string, cancelled bool, err error) {
+	if !placeholders.HasPlaceholders(pattern) {
+		return pattern, false, nil
 	}
 
-	qi := 0
-	score := 0
-	prevMatchIdx := -1
-
-	for ti := 0; ti < len(target) && qi < len(query); ti++ {
-		if target[ti] == query[qi] {
-			score += 10
-			// Bonus for consecutive matches
-			if prevMatchIdx == ti-1 {
-				score += 5
-			}
-			// Bonus for matching at word boundaries (after space, /, -, _)
-			if ti == 0 || target[ti-1] == ' ' || target[ti-1] == '/' || target[ti-1] == '-' || target[ti-1] == '_' {
-				score += 8
-			}
-			prevMatchIdx = ti
-			qi++
-		}
+	var remaining []placeholders.Placeholder
+	resolved, remaining = placeholders.AutoResolve(pattern)
+	if len(remaining) == 0 {
+		return resolved, false, nil
 	}
 
-	// All query characters must be found in order
-	if qi < len(query) {
-		return 0
+	rm := tui.NewResolvingModelFromParsed(resolved, remaining)
+	p := tui.NewResolverProgram(rm)
+	result, err := p.Run()
+	if err != nil {
+		return "", false, fmt.Errorf("resolving placeholders: %w", err)
 	}
 
-	return score
+	if m, ok := result.(tui.ResolvingModel); ok && m.Done() {
+		return m.Resolved(), false, nil
+	}
+
+	fmt.Fprintln(cmd.ErrOrStderr(), "Cancelled.")
+	return "", true, nil
 }
