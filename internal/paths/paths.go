@@ -3,45 +3,68 @@
 // Every path is derived from environment variables so the app is fully
 // relocatable without recompiling (12-factor III).
 //
-// Resolution order (same on all platforms):
+// Resolution order for data and config directories:
 //
-//  1. Explicit overrides
-//     RECALL_DB_PATH   → overrides the SQLite file path entirely
-//     XDG_DATA_HOME    → overrides the data directory root
-//     XDG_CONFIG_HOME  → overrides the config directory root
-//
-//  2. Platform defaults (when no override is set)
-//     Windows → %APPDATA%\recall  (e.g. C:\Users\Alice\AppData\Roaming\recall)
-//     Unix    → data:   ~/.local/share/recall
-//               config: ~/.config/recall
-//
-// The platform default logic lives in paths_windows.go / paths_unix.go so
-// this file stays free of runtime.GOOS checks.
+//  1. XDG_DATA_HOME / XDG_CONFIG_HOME — explicit override, works on all platforms
+//  2. %APPDATA%\recall               — Windows default
+//  3. ~/.local/share/recall          — Linux/macOS data default
+//     ~/.config/recall               — Linux/macOS config default
 package paths
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 const appName = "recall"
 
 // DataDir returns the directory that holds recall's data files (SQLite DB,
-// cloned git sources). XDG_DATA_HOME overrides the platform default.
+// cloned git sources).
+//
+// Windows: %APPDATA%\recall  (e.g. C:\Users\Alice\AppData\Roaming\recall)
+// Unix:    ~/.local/share/recall
+// Override: set XDG_DATA_HOME to any path on any platform.
 func DataDir() (string, error) {
 	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
 		return filepath.Join(xdg, appName), nil
 	}
-	return defaultDataDir()
+	if runtime.GOOS == "windows" {
+		appdata := os.Getenv("APPDATA")
+		if appdata == "" {
+			return "", fmt.Errorf("%%APPDATA%% is not set; set XDG_DATA_HOME or RECALL_DB_PATH to specify a location")
+		}
+		return filepath.Join(appdata, appName), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".local", "share", appName), nil
 }
 
 // ConfigDir returns the directory that holds recall's config file.
-// XDG_CONFIG_HOME overrides the platform default.
+//
+// Windows: %APPDATA%\recall  (same directory as data, matching Windows conventions)
+// Unix:    ~/.config/recall
+// Override: set XDG_CONFIG_HOME to any path on any platform.
 func ConfigDir() (string, error) {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return filepath.Join(xdg, appName), nil
 	}
-	return defaultConfigDir()
+	if runtime.GOOS == "windows" {
+		appdata := os.Getenv("APPDATA")
+		if appdata == "" {
+			return "", fmt.Errorf("%%APPDATA%% is not set; set XDG_CONFIG_HOME to specify a location")
+		}
+		return filepath.Join(appdata, appName), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", appName), nil
 }
 
 // DBPath returns the path to the SQLite database file.
