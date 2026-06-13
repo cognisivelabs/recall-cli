@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/CognisiveLabs/recall-cli/internal/config"
+	"github.com/CognisiveLabs/recall-cli/internal/paths"
 	"github.com/CognisiveLabs/recall-cli/internal/storage"
 )
 
@@ -14,12 +15,10 @@ import (
 // files found in each repo into store. Errors on individual sources are logged to
 // stderr and skipped so one bad source does not block the rest.
 func Sync(cfg *config.Config, store storage.Storage) error {
-	home, err := os.UserHomeDir()
+	sourcesDir, err := paths.SourcesDir()
 	if err != nil {
 		return err
 	}
-
-	sourcesDir := filepath.Join(home, ".local", "share", "recall", "sources")
 	if err := os.MkdirAll(sourcesDir, 0755); err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/CognisiveLabs/recall-cli/internal/config"
+	"github.com/CognisiveLabs/recall-cli/internal/paths"
 
 	"github.com/spf13/cobra"
 )
@@ -26,7 +27,8 @@ func NewConfigCmd() *cobra.Command {
 			if err := config.WriteDefault(); err != nil {
 				return fmt.Errorf("creating config: %w", err)
 			}
-			fmt.Fprintf(os.Stderr, "Config created at %s\n", config.ConfigPath())
+			cfgPath, _ := paths.ConfigPath()
+			fmt.Fprintf(os.Stderr, "Config created at %s\n", cfgPath)
 			return nil
 		},
 	})
@@ -34,8 +36,13 @@ func NewConfigCmd() *cobra.Command {
 	cmd.AddCommand(&cobra.Command{
 		Use:   "path",
 		Short: "Print the config file path",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println(config.ConfigPath())
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfgPath, err := paths.ConfigPath()
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), cfgPath)
+			return nil
 		},
 	})
 
@@ -48,14 +55,15 @@ func NewConfigCmd() *cobra.Command {
 				return fmt.Errorf("loading config: %w", err)
 			}
 
-			fmt.Fprintf(os.Stderr, "Config: %s\n\n", config.ConfigPath())
-			fmt.Printf("Theme: %s\n\n", cfg.Theme)
-			fmt.Println("Sources:")
+			cfgPath, _ := paths.ConfigPath()
+			fmt.Fprintf(cmd.ErrOrStderr(), "Config: %s\n\n", cfgPath)
+			fmt.Fprintf(cmd.OutOrStdout(), "Theme: %s\n\n", cfg.Theme)
+			fmt.Fprintln(cmd.OutOrStdout(), "Sources:")
 			for _, s := range cfg.Sources {
 				if s.Git != "" {
-					fmt.Printf("  - %s (git: %s)\n", s.Name, s.Git)
+					fmt.Fprintf(cmd.OutOrStdout(), "  - %s (git: %s)\n", s.Name, s.Git)
 				} else {
-					fmt.Printf("  - %s (path: %s)\n", s.Name, s.Path)
+					fmt.Fprintf(cmd.OutOrStdout(), "  - %s (path: %s)\n", s.Name, s.Path)
 				}
 			}
 			return nil
