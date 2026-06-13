@@ -13,7 +13,7 @@ func isolateCmdEnv(t *testing.T) string {
 	t.Helper()
 	tmpDir := t.TempDir()
 
-	for _, key := range []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "RECALL_DB_PATH"} {
+	for _, key := range []string{"HOME", "USERPROFILE", "HOMEPATH", "HOMEDRIVE", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "RECALL_DB_PATH"} {
 		prev, existed := os.LookupEnv(key)
 		os.Unsetenv(key)
 		t.Cleanup(func() {
@@ -25,7 +25,11 @@ func isolateCmdEnv(t *testing.T) string {
 		})
 	}
 	os.Setenv("HOME", tmpDir)
-	t.Cleanup(func() { os.Unsetenv("HOME") })
+	os.Setenv("USERPROFILE", tmpDir) // Windows: os.UserHomeDir() reads USERPROFILE first
+	t.Cleanup(func() {
+		os.Unsetenv("HOME")
+		os.Unsetenv("USERPROFILE")
+	})
 
 	return tmpDir
 }

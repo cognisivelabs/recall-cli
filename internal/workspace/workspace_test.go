@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -46,7 +47,7 @@ func TestMatches_HomeExpansion(t *testing.T) {
 	if err != nil {
 		t.Skip("cannot determine home dir")
 	}
-	cwd := home + "/projects/myapp"
+	cwd := filepath.Join(home, "projects", "myapp")
 	if !Matches(cwd, "~/projects/myapp") {
 		t.Error("~ expansion should match")
 	}

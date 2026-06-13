@@ -15,7 +15,9 @@ func isolateEnv(t *testing.T) string {
 	t.Helper()
 	tmpDir := t.TempDir()
 
-	for _, key := range []string{"HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "RECALL_DB_PATH"} {
+	// HOME is used on Unix; USERPROFILE (and HOMEPATH/HOMEDRIVE) is used on Windows.
+	// Unset all of them so os.UserHomeDir() reads from the temp HOME we set below.
+	for _, key := range []string{"HOME", "USERPROFILE", "HOMEPATH", "HOMEDRIVE", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "RECALL_DB_PATH"} {
 		prev, existed := os.LookupEnv(key)
 		os.Unsetenv(key)
 		t.Cleanup(func() {
@@ -28,7 +30,11 @@ func isolateEnv(t *testing.T) string {
 	}
 
 	os.Setenv("HOME", tmpDir)
-	t.Cleanup(func() { os.Unsetenv("HOME") })
+	os.Setenv("USERPROFILE", tmpDir) // Windows: os.UserHomeDir() reads USERPROFILE first
+	t.Cleanup(func() {
+		os.Unsetenv("HOME")
+		os.Unsetenv("USERPROFILE")
+	})
 
 	return tmpDir
 }

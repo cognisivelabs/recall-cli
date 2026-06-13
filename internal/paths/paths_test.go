@@ -53,14 +53,16 @@ func TestDataDir_DefaultsUnderHome(t *testing.T) {
 
 // TestDataDir_RespectsXDG checks that XDG_DATA_HOME overrides the default.
 func TestDataDir_RespectsXDG(t *testing.T) {
-	setenv(t, "XDG_DATA_HOME", "/custom/data")
+	xdg := t.TempDir()
+	setenv(t, "XDG_DATA_HOME", xdg)
 
 	got, err := paths.DataDir()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "/custom/data/recall" {
-		t.Errorf("DataDir() = %q, want /custom/data/recall", got)
+	want := filepath.Join(xdg, "recall")
+	if got != want {
+		t.Errorf("DataDir() = %q, want %q", got, want)
 	}
 }
 
@@ -82,14 +84,16 @@ func TestConfigDir_DefaultsUnderHome(t *testing.T) {
 
 // TestConfigDir_RespectsXDG checks that XDG_CONFIG_HOME overrides the default.
 func TestConfigDir_RespectsXDG(t *testing.T) {
-	setenv(t, "XDG_CONFIG_HOME", "/custom/config")
+	xdg := t.TempDir()
+	setenv(t, "XDG_CONFIG_HOME", xdg)
 
 	got, err := paths.ConfigDir()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "/custom/config/recall" {
-		t.Errorf("ConfigDir() = %q, want /custom/config/recall", got)
+	want := filepath.Join(xdg, "recall")
+	if got != want {
+		t.Errorf("ConfigDir() = %q, want %q", got, want)
 	}
 }
 
@@ -115,27 +119,29 @@ func TestDBPath_DefaultInsideDataDir(t *testing.T) {
 
 // TestDBPath_EnvOverride checks that RECALL_DB_PATH completely overrides the default.
 func TestDBPath_EnvOverride(t *testing.T) {
-	setenv(t, "RECALL_DB_PATH", "/tmp/my-test.db")
+	override := filepath.Join(t.TempDir(), "my-test.db")
+	setenv(t, "RECALL_DB_PATH", override)
 
 	got, err := paths.DBPath()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "/tmp/my-test.db" {
-		t.Errorf("DBPath() = %q, want /tmp/my-test.db", got)
+	if got != override {
+		t.Errorf("DBPath() = %q, want %q", got, override)
 	}
 }
 
 // TestDBPath_XDGPropagates checks that XDG_DATA_HOME flows through to DBPath.
 func TestDBPath_XDGPropagates(t *testing.T) {
+	xdg := t.TempDir()
 	unsetenv(t, "RECALL_DB_PATH")
-	setenv(t, "XDG_DATA_HOME", "/xdg/data")
+	setenv(t, "XDG_DATA_HOME", xdg)
 
 	got, err := paths.DBPath()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := "/xdg/data/recall/recall.db"
+	want := filepath.Join(xdg, "recall", "recall.db")
 	if got != want {
 		t.Errorf("DBPath() = %q, want %q", got, want)
 	}
@@ -162,13 +168,14 @@ func TestConfigPath_InsideConfigDir(t *testing.T) {
 
 // TestConfigPath_XDGPropagates checks that XDG_CONFIG_HOME flows through to ConfigPath.
 func TestConfigPath_XDGPropagates(t *testing.T) {
-	setenv(t, "XDG_CONFIG_HOME", "/xdg/config")
+	xdg := t.TempDir()
+	setenv(t, "XDG_CONFIG_HOME", xdg)
 
 	got, err := paths.ConfigPath()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := "/xdg/config/recall/config.yaml"
+	want := filepath.Join(xdg, "recall", "config.yaml")
 	if got != want {
 		t.Errorf("ConfigPath() = %q, want %q", got, want)
 	}
@@ -192,13 +199,14 @@ func TestSourcesDir_InsideDataDir(t *testing.T) {
 
 // TestSourcesDir_XDGPropagates checks that XDG_DATA_HOME flows through to SourcesDir.
 func TestSourcesDir_XDGPropagates(t *testing.T) {
-	setenv(t, "XDG_DATA_HOME", "/xdg/data")
+	xdg := t.TempDir()
+	setenv(t, "XDG_DATA_HOME", xdg)
 
 	got, err := paths.SourcesDir()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := "/xdg/data/recall/sources"
+	want := filepath.Join(xdg, "recall", "sources")
 	if got != want {
 		t.Errorf("SourcesDir() = %q, want %q", got, want)
 	}
