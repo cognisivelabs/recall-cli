@@ -10,6 +10,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewListCmd returns the `recall list` command.
+// Supports filtering by tag (-t) or source (-s). Outputs a human-readable table
+// by default; use --json for machine-readable output.
 func NewListCmd(store storage.Storage) *cobra.Command {
 	var tagFilter string
 	var sourceFilter string
@@ -61,6 +64,8 @@ func NewListCmd(store storage.Storage) *cobra.Command {
 	return cmd
 }
 
+// printTable writes commands as an aligned tab-separated table to stdout.
+// Long values are truncated so columns stay readable in a normal terminal width.
 func printTable(cmds []storage.Command) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	fmt.Fprintf(w, "ID\tCOMMAND\tDESCRIPTION\tTAGS\tUSED\tSOURCE\n")
@@ -85,6 +90,8 @@ func printTable(cmds []storage.Command) {
 	w.Flush()
 }
 
+// printJSON writes commands as a JSON array to stdout.
+// Each object includes id, pattern, description, tags, source, and usage_count.
 func printJSON(cmds []storage.Command) {
 	fmt.Print("[")
 	for i, c := range cmds {

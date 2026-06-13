@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/CognisiveLabs/recall-cli/internal/storage"
@@ -10,6 +9,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewDeleteCmd returns the `recall delete` (alias: rm) command.
+// Accepts a numeric ID or an exact pattern string to identify the command.
+// Prompts for confirmation unless --force is passed.
 func NewDeleteCmd(store storage.Storage) *cobra.Command {
 	var force bool
 
@@ -24,60 +26,16 @@ func NewDeleteCmd(store storage.Storage) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			arg := strings.TrimSpace(args[0])
 
-			if id, err := strconv.Atoi(arg); err == nil {
-				target, err := store.GetByID(id)
-				if err != nil {
-					return fmt.Errorf("looking up command: %w", err)
-				}
-				if target == nil {
-					return fmt.Errorf("no command with ID %d found", id)
-				}
-				return confirmAndDelete(cmd, store, *target, force)
+			target, err := findCommandByIDOrPattern(store, arg)
+			if err != nil {
+				return err
 			}
-
-			return deleteByPattern(cmd, store, arg, force)
+			return confirmAndDelete(cmd, store, *target, force)
 		},
 	}
 
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Skip confirmation")
 	return cmd
-}
-
-func deleteByPattern(cmd *cobra.Command, store storage.Storage, pattern string, force bool) error {
-	// Try exact match first — safest for a destructive op
-	exact, err := store.GetByPattern(pattern)
-	if err != nil {
-		return fmt.Errorf("looking up command: %w", err)
-	}
-	if exact != nil {
-		return confirmAndDelete(cmd, store, *exact, force)
-	}
-
-	// No exact match — fall back to substring search and show suggestions
-	cmds, err := store.List()
-	if err != nil {
-		return fmt.Errorf("listing commands: %w", err)
-	}
-
-	patternLower := strings.ToLower(pattern)
-	var matches []storage.Command
-	for _, c := range cmds {
-		if strings.Contains(strings.ToLower(c.Pattern), patternLower) {
-			matches = append(matches, c)
-		}
-	}
-
-	if len(matches) == 0 {
-		return fmt.Errorf("no command matching %q found", pattern)
-	}
-
-	if len(matches) == 1 {
-		return confirmAndDelete(cmd, store, matches[0], force)
-	}
-
-	// Multiple matches — show them but don't delete (ambiguous + destructive = bad)
-	printMatchList(cmd.ErrOrStderr(), pattern, matches)
-	return fmt.Errorf("multiple matches for %q — re-run with one of the IDs shown above", pattern)
 }
 
 // confirmAndDelete asks for confirmation (unless force), then deletes.

@@ -21,6 +21,9 @@ type CommandFile struct {
 	Commands []CommandEntry `yaml:"commands"`
 }
 
+// ImportFromRepo scans repoPath for YAML command files and upserts every valid
+// command entry into store, tagging each with sourceName. Returns the count of
+// successfully imported commands. Malformed files are logged and skipped.
 func ImportFromRepo(store storage.Storage, repoPath string, sourceName string) (int, error) {
 	files, err := findCommandFiles(repoPath)
 	if err != nil {
@@ -58,6 +61,8 @@ func ImportFromRepo(store storage.Storage, repoPath string, sourceName string) (
 	return imported, nil
 }
 
+// findCommandFiles walks root and returns paths to all .yaml/.yml files,
+// skipping the .git directory.
 func findCommandFiles(root string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -80,6 +85,10 @@ func findCommandFiles(root string) ([]string, error) {
 	return files, err
 }
 
+// parseCommandFile reads a YAML command file and returns its entries.
+// Accepts two formats:
+//   - Structured: { commands: [{pattern, description, tags}, ...] }
+//   - Flat list:  [{pattern, description, tags}, ...]
 func parseCommandFile(path string) ([]CommandEntry, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

@@ -9,6 +9,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewConfigCmd returns the `recall config` parent command with three sub-commands:
+//   - init  — create a default config file at the standard path
+//   - path  — print the config file path (useful for scripting)
+//   - show  — print the active configuration
 func NewConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",

@@ -27,6 +27,8 @@ type ListModel struct {
 	list list.Model
 }
 
+// NewListModel wraps a Bubble Tea list with recall-specific configuration.
+// cwd is used to mark items that match the user's current working directory.
 func NewListModel(commands []storage.Command, cwd string) ListModel {
 	items := make([]list.Item, len(commands))
 	for i, cmd := range commands {
@@ -77,6 +79,7 @@ func (m *ListModel) SetSize(width, height int) {
 	m.list.SetSize(width, height)
 }
 
+// SelectedItem returns the currently highlighted command, or nil if nothing is selected.
 func (m ListModel) SelectedItem() *storage.Command {
 	if i, ok := m.list.SelectedItem().(item); ok {
 		return &i.command
@@ -84,6 +87,8 @@ func (m ListModel) SelectedItem() *storage.Command {
 	return nil
 }
 
+// SelectedMatchesCwd reports whether the currently selected command's workspace
+// filter matches the user's current working directory.
 func (m ListModel) SelectedMatchesCwd() bool {
 	if i, ok := m.list.SelectedItem().(item); ok {
 		return i.matchCwd

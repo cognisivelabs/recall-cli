@@ -2,6 +2,11 @@ package storage
 
 import "time"
 
+// Command is the core domain type: a shell command pattern with metadata.
+// Pattern is the unique key — it may contain {{placeholder}} tokens.
+// Tags is a comma-separated string (e.g. "k8s,debug").
+// WorkspaceFilter is a path glob used to surface the command when the user is
+// in a matching directory.
 type Command struct {
 	ID              int       `json:"id"`
 	Pattern         string    `json:"pattern"`
@@ -15,6 +20,9 @@ type Command struct {
 	UsageCount      int       `json:"usage_count"`
 }
 
+// Storage is the persistence interface for recall commands.
+// All callers (commands, TUI) depend on this interface so the underlying
+// database can be swapped or mocked in tests.
 type Storage interface {
 	List() ([]Command, error)
 	GetByID(id int) (*Command, error)

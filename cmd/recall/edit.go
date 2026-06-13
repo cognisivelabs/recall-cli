@@ -9,6 +9,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewEditCmd returns the `recall edit` command.
+// Looks up a command by numeric ID or exact pattern string, then opens the
+// interactive form pre-filled with its current values.
 func NewEditCmd(store storage.Storage) *cobra.Command {
 	return &cobra.Command{
 		Use:   "edit <id or pattern>",

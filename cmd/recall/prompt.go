@@ -33,8 +33,13 @@ func printMatchList(out io.Writer, query string, matches []storage.Command) {
 }
 
 // findCommandByIDOrPattern resolves a command from a numeric ID or an exact pattern string.
-// Returns an error if not found. Used by: edit, delete commands.
+// Returns an error if the argument is empty or no match is found.
+// Used by: edit, delete commands.
 func findCommandByIDOrPattern(store storage.Storage, arg string) (*storage.Command, error) {
+	if arg == "" {
+		return nil, fmt.Errorf("argument cannot be empty")
+	}
+
 	if id, err := strconv.Atoi(arg); err == nil {
 		target, err := store.GetByID(id)
 		if err != nil {

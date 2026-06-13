@@ -11,6 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewSyncCmd returns the `recall sync` command.
+// Reads git sources from the config file and pulls/clones each repo, then
+// imports any YAML command files found inside into the local store.
 func NewSyncCmd(store storage.Storage) *cobra.Command {
 	return &cobra.Command{
 		Use:   "sync",

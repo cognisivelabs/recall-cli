@@ -11,6 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewSaveCmd returns the `recall save` command.
+// Reads the last command from shell history (or from -c if provided), then opens
+// an interactive form so the user can attach a description, tags, and workspace.
+// If the command is already saved it asks whether to edit it instead.
 func NewSaveCmd(store storage.Storage) *cobra.Command {
 	var lastCmdFlag string
 

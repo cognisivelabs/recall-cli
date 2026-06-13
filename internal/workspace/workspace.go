@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+// Detect returns the absolute path of the current working directory.
+// Used to decide which saved commands are relevant to the user's current context.
 func Detect() string {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -14,6 +16,9 @@ func Detect() string {
 	return cwd
 }
 
+// Matches reports whether cwd satisfies filter.
+// filter can be a glob pattern (e.g. "~/work/billing-*") or a path prefix.
+// Returns false when either argument is empty.
 func Matches(cwd, filter string) bool {
 	if filter == "" || cwd == "" {
 		return false
@@ -28,6 +33,7 @@ func Matches(cwd, filter string) bool {
 	return strings.HasPrefix(cwd, filter)
 }
 
+// expandHome replaces a leading "~/" with the user's home directory.
 func expandHome(path string) string {
 	if strings.HasPrefix(path, "~/") {
 		home, err := os.UserHomeDir()

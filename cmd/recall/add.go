@@ -10,6 +10,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewAddCmd returns the `recall add` command.
+// With no flags it opens an interactive form. With a pattern + at least one flag
+// (-d description or -t tags) it saves non-interactively. If the pattern already
+// exists in interactive mode it refuses and suggests `recall edit` instead; in
+// non-interactive mode it upserts (update if exists, insert otherwise).
 func NewAddCmd(store storage.Storage) *cobra.Command {
 	var desc string
 	var tags string

@@ -13,6 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewRunCmd returns the `recall run` command.
+// Searches saved commands by the given query, resolves any {{placeholders}},
+// and executes the result. Use --dry to print the resolved command without running it.
+// Use -t to restrict the search to commands with a specific tag.
 func NewRunCmd(store storage.Storage) *cobra.Command {
 	var dryRun bool
 	var tagFilter string
@@ -83,7 +87,11 @@ func NewRunCmd(store storage.Storage) *cobra.Command {
 	return cmd
 }
 
-// findBestMatch searches for a command using fuzzy matching.
+// findBestMatch finds the best saved command for a search query.
+// Priority order: exact pattern match > substring in pattern > fuzzy score across
+// pattern + description + tags. Returns nil when nothing scores above zero.
+// When there is a tie at the top, it prints the tied candidates to stderr so
+// the user can see what matched, then returns the first one anyway.
 // Priority: exact match > substring in pattern > fuzzy score across pattern+description+tags.
 // Returns the highest-scoring match, or nil if nothing scores above threshold.
 func findBestMatch(store storage.Storage, query string, tagFilter string) (*storage.Command, error) {
@@ -168,8 +176,10 @@ func findBestMatch(store storage.Storage, query string, tagFilter string) (*stor
 	return &results[0].cmd, nil
 }
 
-// fuzzyScore returns a score for how well the query characters appear in order within the target.
-// Higher score = better match. Returns 0 if not all query chars are found in order.
+// fuzzyScore returns a score for how well query matches target.
+// All query characters must appear in order inside target; returns 0 otherwise.
+// Bonuses are awarded for consecutive matches and word-boundary matches (after space, /, -, _).
+// Higher score means a stronger match.
 func fuzzyScore(query, target string) int {
 	if len(query) == 0 {
 		return 0

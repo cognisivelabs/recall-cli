@@ -53,6 +53,8 @@ var (
 			Italic(true)
 )
 
+// NewFormModel creates the four-field input form.
+// Pass an existing command to pre-fill for editing; pass nil to start a blank form.
 func NewFormModel(store storage.Storage, existing *storage.Command) FormModel {
 	m := FormModel{
 		store:  store,
@@ -103,6 +105,9 @@ func NewFormModel(store storage.Storage, existing *storage.Command) FormModel {
 	return m
 }
 
+// saveCommand persists the form values to the store.
+// Updates an existing command when m.id > 0, otherwise upserts a new one.
+// Returns FormSavedMsg on success or an error value which the Update loop handles.
 func saveCommand(m FormModel) tea.Msg {
 	cmd := m.inputs[0].Value()
 	desc := m.inputs[1].Value()
@@ -145,6 +150,9 @@ func saveCommand(m FormModel) tea.Msg {
 	return FormSavedMsg{}
 }
 
+// StartForm launches the interactive add/edit form as a standalone program.
+// Used by `recall add`, `recall edit`, and `recall save`. Writes output to stderr
+// so it works even when stdout is piped.
 func StartForm(store storage.Storage, existing *storage.Command) error {
 	p := tea.NewProgram(NewFormModel(store, existing), tea.WithOutput(os.Stderr))
 	if _, err := p.Run(); err != nil {
@@ -226,6 +234,8 @@ func (m FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateInputs forwards a key/mouse message to all text inputs and returns
+// their combined commands (e.g. cursor blink ticks).
 func (m *FormModel) updateInputs(msg tea.Msg) tea.Cmd {
 	cmds := make([]tea.Cmd, len(m.inputs))
 	for i := range m.inputs {

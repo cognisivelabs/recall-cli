@@ -20,13 +20,12 @@ bindkey -M emacs '^@' recall_widget
 bindkey -M viins '^@' recall_widget
 bindkey -M vicmd '^@' recall_widget
 
-# Fallback: Ctrl+R (Replace standard history search)
-bindkey -M emacs '^R' recall_widget
-bindkey -M viins '^R' recall_widget
-bindkey -M vicmd '^R' recall_widget
-bindkey '^R' recall_widget
-
-echo "Recall Shell Integration Loaded"
+if [[ "${RECALL_BIND_CTRL_R:-0}" == "1" ]]; then
+  bindkey -M emacs '^R' recall_widget
+  bindkey -M viins '^R' recall_widget
+  bindkey -M vicmd '^R' recall_widget
+  bindkey '^R' recall_widget
+fi
 
 # Wrapper to execute command when running 'recall' manually
 recall() {

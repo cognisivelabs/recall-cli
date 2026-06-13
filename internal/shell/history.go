@@ -8,8 +8,9 @@ import (
 	"strings"
 )
 
-// GetLastCommand reads the last command from the user's history file.
-// Currently supports Zsh (~/.zsh_history).
+// GetLastCommand returns the most recent command from the user's shell history.
+// Checks ~/.zsh_history first (zsh extended format), then falls back to ~/.bash_history.
+// Returns an error if neither file is readable.
 func GetLastCommand() (string, error) {
 	// TODO: Detect shell and read appropriate file
 	// For MVP, assuming Zsh on Mac as per prompt
@@ -20,10 +21,8 @@ func GetLastCommand() (string, error) {
 
 	historyFile := filepath.Join(home, ".zsh_history")
 
-	// Open file
 	file, err := os.Open(historyFile)
 	if err != nil {
-		// Fallback to bash if zsh not found
 		historyFile = filepath.Join(home, ".bash_history")
 		file, err = os.Open(historyFile)
 		if err != nil {
@@ -32,10 +31,6 @@ func GetLastCommand() (string, error) {
 	}
 	defer file.Close()
 
-	// Read last line efficiently?
-	// History files can be large, so seeking to end might be better,
-	// but lines are variable length.
-	// For MVP, just scan.
 	var lastLine string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -49,11 +44,12 @@ func GetLastCommand() (string, error) {
 		return "", err
 	}
 
-	// Zsh history format: ": 1678900000:0;command"
-	// We need to parse this.
 	return parseZshLine(lastLine), nil
 }
 
+// parseZshLine strips the zsh extended-history prefix from a line.
+// Zsh extended format is ": <timestamp>:<elapsed>;<command>".
+// Plain lines (bash or zsh without EXTENDED_HISTORY) are returned unchanged.
 func parseZshLine(line string) string {
 	// Zsh extended history format
 	if strings.HasPrefix(line, ":") {

@@ -40,3 +40,16 @@ func TestEdit_RequiresArg(t *testing.T) {
 		t.Fatal("expected error for missing arg, got nil")
 	}
 }
+
+func TestEdit_EmptyArg(t *testing.T) {
+	store := newMockStore()
+	cmd := NewEditCmd(store)
+
+	_, _, err := execCmd(cmd, " ")
+	if err == nil {
+		t.Fatal("expected error for empty arg, got nil")
+	}
+	if !strings.Contains(err.Error(), "argument cannot be empty") {
+		t.Errorf("expected 'argument cannot be empty', got %q", err.Error())
+	}
+}

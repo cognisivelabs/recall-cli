@@ -29,10 +29,13 @@ type ResolvingModel struct {
 func (m ResolvingModel) Done() bool      { return m.done }
 func (m ResolvingModel) Resolved() string { return m.currentCommand }
 
+// NewResolverProgram wraps a ResolvingModel in a Bubble Tea program that writes to stderr.
 func NewResolverProgram(m ResolvingModel) *tea.Program {
 	return tea.NewProgram(m, tea.WithOutput(os.Stderr))
 }
 
+// NewResolvingModel builds a resolver starting from the raw command string.
+// Auto-resolves {{branch}}, {{cwd}}, etc. first, then prompts the user for the rest.
 func NewResolvingModel(cmd string) ResolvingModel {
 	// Auto-resolve first, then only prompt for remaining
 	resolved, remaining := placeholders.AutoResolve(cmd)
@@ -46,6 +49,9 @@ func NewResolvingModel(cmd string) ResolvingModel {
 	return m
 }
 
+// NewResolvingModelFromParsed creates a resolver when auto-resolution has already happened
+// upstream (e.g. in the TUI or `recall run`). remaining contains only the placeholders
+// that still need user input.
 func NewResolvingModelFromParsed(cmd string, remaining []placeholders.Placeholder) ResolvingModel {
 	m := ResolvingModel{
 		originalCommand: cmd,
@@ -57,6 +63,9 @@ func NewResolvingModelFromParsed(cmd string, remaining []placeholders.Placeholde
 	return m
 }
 
+// setupNextInput prepares the UI for the next unresolved placeholder.
+// Sets isOptions=true and builds a list picker for "options:" types; otherwise
+// creates a plain text input. Sets done=true when all placeholders are resolved.
 func (m *ResolvingModel) setupNextInput() {
 	if len(m.pending) == 0 {
 		m.done = true
@@ -148,6 +157,8 @@ func (m ResolvingModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// resolveCurrent substitutes val into the current command string for the first
+// pending placeholder, then advances to the next one.
 func (m *ResolvingModel) resolveCurrent(val string) {
 	p := m.pending[0]
 	m.currentCommand = placeholders.Replace(m.currentCommand, p, val)

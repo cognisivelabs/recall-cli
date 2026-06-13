@@ -10,6 +10,9 @@ import (
 	"github.com/CognisiveLabs/recall-cli/internal/storage"
 )
 
+// Sync pulls (or clones) every git source listed in cfg, then imports YAML command
+// files found in each repo into store. Errors on individual sources are logged to
+// stderr and skipped so one bad source does not block the rest.
 func Sync(cfg *config.Config, store storage.Storage) error {
 	home, err := os.UserHomeDir()
 	if err != nil {

@@ -12,6 +12,9 @@ import (
 	"golang.org/x/term"
 )
 
+// main initializes the SQLite store, wires up all sub-commands, and hands off to Cobra.
+// If the user runs `recall` with no sub-command the TUI launches; if the result is a
+// command string it is executed directly (or printed to stdout when piped).
 func main() {
 	store, err := storage.NewSQLiteStore()
 	if err != nil {

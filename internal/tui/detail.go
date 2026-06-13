@@ -17,10 +17,13 @@ type DetailModel struct {
 	matchCwd bool
 }
 
+// NewDetailModel creates an empty detail panel. Call SetCommand to populate it.
 func NewDetailModel() DetailModel {
 	return DetailModel{}
 }
 
+// SetCommand updates the command displayed in the detail panel. Pass nil to show
+// the empty-state placeholder. matchCwd controls the workspace indicator.
 func (m *DetailModel) SetCommand(cmd *storage.Command, matchCwd bool) {
 	m.command = cmd
 	m.matchCwd = matchCwd
@@ -129,6 +132,8 @@ func (m DetailModel) View() string {
 		Render(content)
 }
 
+// timeAgo returns a human-readable string describing how long ago t occurred
+// (e.g. "just now", "5 mins ago", "2 days ago").
 func timeAgo(t time.Time) string {
 	d := time.Since(t)
 	switch {
@@ -155,6 +160,8 @@ func timeAgo(t time.Time) string {
 	}
 }
 
+// renderStatusBar returns the full-layout key-hint bar that appears at the bottom
+// of the TUI when the terminal is wide enough for the split-pane view.
 func renderStatusBar(width int, total int) string {
 	keys := []struct {
 		key  string
@@ -193,6 +200,8 @@ func renderStatusBar(width int, total int) string {
 	return bar
 }
 
+// renderCompactStatusBar returns a trimmed key-hint bar used when the terminal
+// is too narrow or short for the full split-pane layout.
 func renderCompactStatusBar(width int, total int) string {
 	keys := []struct {
 		key  string

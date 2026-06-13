@@ -57,6 +57,7 @@ type Model struct {
 	tagCursor int
 }
 
+// detectLayout chooses between the three rendering modes based on terminal dimensions.
 func detectLayout(w, h int) LayoutMode {
 	if w < minWidth || h < minHeight {
 		return LayoutTiny
@@ -67,6 +68,9 @@ func detectLayout(w, h int) LayoutMode {
 	return LayoutFull
 }
 
+// NewModel creates the top-level Bubble Tea model.
+// Loads all commands, detects the current working directory for workspace sorting,
+// and collects the available tags for the tag-picker UI.
 func NewModel(store storage.Storage) Model {
 	cmds, err := store.List()
 	if err != nil {
@@ -370,6 +374,8 @@ func (m Model) renderTagPicker(width int) string {
 	return title + "\n\n" + strings.Join(rows, "\n") + "\n\n" + hint
 }
 
+// reloadList re-fetches all commands from the store and rebuilds the list model.
+// Called after a command is saved, edited, or deleted from within the TUI.
 func (m Model) reloadList() Model {
 	cmdsList, _ := m.store.List()
 	m.allCmds = cmdsList
@@ -384,6 +390,8 @@ func (m Model) reloadList() Model {
 	return m
 }
 
+// applyTagFilter filters the displayed commands to only those matching m.activeTag.
+// Uses the cached allCmds slice so no extra store query is needed.
 func (m Model) applyTagFilter() Model {
 	filtered := storage.FilterByTag(m.allCmds, m.activeTag)
 
@@ -397,6 +405,8 @@ func (m Model) applyTagFilter() Model {
 	return m
 }
 
+// resizePanes recalculates list and detail panel dimensions based on current
+// terminal size and layout mode. Called on every WindowSizeMsg and after reloads.
 func (m Model) resizePanes() Model {
 	if m.width == 0 || m.layout == LayoutTiny {
 		return m
@@ -420,6 +430,8 @@ func (m Model) resizePanes() Model {
 	return m
 }
 
+// Start launches the full-screen TUI and returns the command string the user
+// selected (with placeholders resolved), or "" if the user quit without selecting.
 func Start(store storage.Storage) (string, error) {
 	p := tea.NewProgram(NewModel(store), tea.WithAltScreen(), tea.WithOutput(os.Stderr))
 	m, err := p.Run()
@@ -453,6 +465,8 @@ func Start(store storage.Storage) (string, error) {
 	return "", nil
 }
 
+// sortByWorkspace moves commands whose WorkspaceFilter matches cwd to the top of the list.
+// Preserves the relative order of all other commands (stable sort).
 func sortByWorkspace(cmds []storage.Command, cwd string) []storage.Command {
 	if cwd == "" {
 		return cmds
