@@ -3,6 +3,7 @@ package paths_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -194,6 +195,54 @@ func TestSourcesDir_InsideDataDir(t *testing.T) {
 	want := filepath.Join(dataDir, "sources")
 	if got != want {
 		t.Errorf("SourcesDir() = %q, want %q", got, want)
+	}
+}
+
+// TestDataDir_WindowsAppData checks that APPDATA is used as the default on Windows.
+// On non-Windows platforms this test verifies that setting APPDATA has no effect.
+func TestDataDir_WindowsAppData(t *testing.T) {
+	appdata := t.TempDir()
+	unsetenv(t, "XDG_DATA_HOME")
+	setenv(t, "APPDATA", appdata)
+
+	got, err := paths.DataDir()
+	if err != nil {
+		t.Fatalf("DataDir(): %v", err)
+	}
+
+	if runtime.GOOS == "windows" {
+		want := filepath.Join(appdata, "recall")
+		if got != want {
+			t.Errorf("DataDir() = %q, want %q (APPDATA-based path)", got, want)
+		}
+	} else {
+		// On Unix APPDATA is ignored; the result must NOT be under the APPDATA temp dir.
+		if strings.HasPrefix(got, appdata) {
+			t.Errorf("DataDir() = %q — APPDATA should be ignored on non-Windows", got)
+		}
+	}
+}
+
+// TestConfigDir_WindowsAppData checks that APPDATA is used as the default on Windows.
+func TestConfigDir_WindowsAppData(t *testing.T) {
+	appdata := t.TempDir()
+	unsetenv(t, "XDG_CONFIG_HOME")
+	setenv(t, "APPDATA", appdata)
+
+	got, err := paths.ConfigDir()
+	if err != nil {
+		t.Fatalf("ConfigDir(): %v", err)
+	}
+
+	if runtime.GOOS == "windows" {
+		want := filepath.Join(appdata, "recall")
+		if got != want {
+			t.Errorf("ConfigDir() = %q, want %q (APPDATA-based path)", got, want)
+		}
+	} else {
+		if strings.HasPrefix(got, appdata) {
+			t.Errorf("ConfigDir() = %q — APPDATA should be ignored on non-Windows", got)
+		}
 	}
 }
 
