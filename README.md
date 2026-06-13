@@ -314,21 +314,13 @@ internal/
 
 **Data locations** (all overridable via environment):
 
-| | macOS / Linux | Windows |
+| Path | Default | Override |
 |---|---|---|
-| Database | `~/.local/share/recall/recall.db` | `%APPDATA%\recall\recall.db` |
-| Config | `~/.config/recall/config.yaml` | `%APPDATA%\recall\config.yaml` |
-| Synced repos | `~/.local/share/recall/sources/` | `%APPDATA%\recall\sources\` |
+| Database | `~/.local/share/recall/recall.db` | `RECALL_DB_PATH` |
+| Config | `~/.config/recall/config.yaml` | `XDG_CONFIG_HOME` |
+| Synced repos | `~/.local/share/recall/sources/` | `XDG_DATA_HOME` |
 
-Override any path with environment variables — these work on all platforms:
-
-| Variable | Effect |
-|---|---|
-| `RECALL_DB_PATH` | Direct path for the SQLite database file |
-| `XDG_DATA_HOME` | Root for database and synced repos |
-| `XDG_CONFIG_HOME` | Root for the config file |
-
-> **Windows upgrade note:** versions before v0.x.x stored data under `~\.local\share\recall\`. If you have existing data there, move `recall.db` to `%APPDATA%\recall\recall.db` or set `RECALL_DB_PATH` to the old path to keep using it.
+On Linux/macOS, `XDG_DATA_HOME` and `XDG_CONFIG_HOME` follow the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) if set.
 
 ## License
 
