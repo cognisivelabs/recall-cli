@@ -20,8 +20,8 @@ func NewDeleteCmd(store storage.Storage) *cobra.Command {
 		Short:   "Delete a saved command by ID or pattern",
 		Aliases: []string{"rm"},
 		Example: `  recall delete 3
-					recall delete "kubectl logs"
-					recall delete 3 --force`,
+  recall delete "kubectl logs"
+  recall delete 3 --force`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			arg := strings.TrimSpace(args[0])

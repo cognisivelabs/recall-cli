@@ -24,9 +24,9 @@ func NewAddCmd(store storage.Storage) *cobra.Command {
 		Short: "Add a new command to recall",
 		Long:  `Add a command directly. Opens a form to fill in details, or use flags for non-interactive mode.`,
 		Example: `  recall add "kubectl logs -f deploy/{{service}}"
-					recall add "docker compose up -d" -d "Start all services" -t "docker,dev"
-					recall add "kubectl get pods" -t prod
-					recall add  # opens empty form`,
+  recall add "docker compose up -d" -d "Start all services" -t "docker,dev"
+  recall add "kubectl get pods" -t prod
+  recall add  # opens empty form`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pattern := ""
 			if len(args) > 0 {

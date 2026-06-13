@@ -1,8 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 	"text/tabwriter"
 
 	"github.com/CognisiveLabs/recall-cli/internal/storage"
@@ -19,8 +20,8 @@ func NewListCmd(store storage.Storage) *cobra.Command {
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List all saved commands",
+		Use:     "list",
+		Short:   "List all saved commands",
 		Aliases: []string{"ls"},
 		Example: `  recall list
   recall list -t docker
@@ -44,16 +45,14 @@ func NewListCmd(store storage.Storage) *cobra.Command {
 			}
 
 			if len(filtered) == 0 {
-				fmt.Fprintln(os.Stderr, "No commands found.")
+				fmt.Fprintln(cmd.ErrOrStderr(), "No commands found.")
 				return nil
 			}
 
 			if jsonOutput {
-				printJSON(filtered)
-				return nil
+				return printJSON(cmd.OutOrStdout(), filtered)
 			}
-
-			printTable(filtered)
+			printTable(cmd.OutOrStdout(), filtered)
 			return nil
 		},
 	}
@@ -64,43 +63,59 @@ func NewListCmd(store storage.Storage) *cobra.Command {
 	return cmd
 }
 
-// printTable writes commands as an aligned tab-separated table to stdout.
-// Long values are truncated so columns stay readable in a normal terminal width.
-func printTable(cmds []storage.Command) {
-	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "ID\tCOMMAND\tDESCRIPTION\tTAGS\tUSED\tSOURCE\n")
-	fmt.Fprintf(w, "──\t───────\t───────────\t────\t────\t──────\n")
-	for _, c := range cmds {
-		pattern := c.Pattern
-		if len(pattern) > 50 {
-			pattern = pattern[:47] + "..."
-		}
-		desc := c.Description
-		if len(desc) > 30 {
-			desc = desc[:27] + "..."
-		}
-		tags := c.Tags
-		if len(tags) > 20 {
-			tags = tags[:17] + "..."
-		}
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%d\t%s\n",
-			c.ID, pattern, desc, tags, c.UsageCount, c.Source,
-		)
-	}
-	w.Flush()
+// commandJSON is the DTO used for --json output. Field names are stable across
+// refactors because json tags are explicit.
+type commandJSON struct {
+	ID          int    `json:"id"`
+	Pattern     string `json:"pattern"`
+	Description string `json:"description"`
+	Tags        string `json:"tags"`
+	Source      string `json:"source"`
+	UsageCount  int    `json:"usage_count"`
 }
 
-// printJSON writes commands as a JSON array to stdout.
-// Each object includes id, pattern, description, tags, source, and usage_count.
-func printJSON(cmds []storage.Command) {
-	fmt.Print("[")
-	for i, c := range cmds {
-		if i > 0 {
-			fmt.Print(",")
-		}
-		fmt.Printf("\n  {\"id\":%d,\"pattern\":%q,\"description\":%q,\"tags\":%q,\"source\":%q,\"usage_count\":%d}",
-			c.ID, c.Pattern, c.Description, c.Tags, c.Source, c.UsageCount,
+// printTable writes commands as an aligned tab-separated table to w.
+// Long values are truncated so columns stay readable in a normal terminal width.
+func printTable(w io.Writer, cmds []storage.Command) {
+	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+	fmt.Fprintf(tw, "ID\tCOMMAND\tDESCRIPTION\tTAGS\tUSED\tSOURCE\n")
+	fmt.Fprintf(tw, "──\t───────\t───────────\t────\t────\t──────\n")
+	for _, c := range cmds {
+		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%d\t%s\n",
+			c.ID,
+			truncate(c.Pattern, 50),
+			truncate(c.Description, 30),
+			truncate(c.Tags, 20),
+			c.UsageCount,
+			c.Source,
 		)
 	}
-	fmt.Println("\n]")
+	tw.Flush()
+}
+
+// printJSON marshals commands as a JSON array to w using encoding/json.
+func printJSON(w io.Writer, cmds []storage.Command) error {
+	dtos := make([]commandJSON, len(cmds))
+	for i, c := range cmds {
+		dtos[i] = commandJSON{
+			ID:          c.ID,
+			Pattern:     c.Pattern,
+			Description: c.Description,
+			Tags:        c.Tags,
+			Source:      c.Source,
+			UsageCount:  c.UsageCount,
+		}
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(dtos)
+}
+
+// truncate shortens s to max runes, appending "..." if it was cut.
+func truncate(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max-3]) + "..."
 }

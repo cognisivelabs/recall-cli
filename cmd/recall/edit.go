@@ -18,7 +18,7 @@ func NewEditCmd(store storage.Storage) *cobra.Command {
 		Short: "Edit an existing saved command",
 		Long:  `Opens a form pre-filled with the existing command's data for editing.`,
 		Example: `  recall edit 3
-					recall edit "kubectl logs"`,
+  recall edit "kubectl logs"`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			arg := strings.TrimSpace(args[0])
