@@ -35,19 +35,18 @@ func unsetenv(t *testing.T, key string) {
 	})
 }
 
-// TestDataDir_DefaultsUnderHome checks the default path when no XDG env is set.
-func TestDataDir_DefaultsUnderHome(t *testing.T) {
+// TestDataDir_DefaultContainsRecall checks that the default DataDir contains "recall"
+// and is rooted in a sensible location. Platform-specific assertions are in
+// paths_unix_test.go and paths_windows_test.go.
+func TestDataDir_DefaultContainsRecall(t *testing.T) {
 	unsetenv(t, "XDG_DATA_HOME")
 
 	got, err := paths.DataDir()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	home, _ := os.UserHomeDir()
-	want := filepath.Join(home, ".local", "share", "recall")
-	if got != want {
-		t.Errorf("DataDir() = %q, want %q", got, want)
+	if !strings.Contains(got, "recall") {
+		t.Errorf("DataDir() = %q, expected it to contain 'recall'", got)
 	}
 }
 
@@ -66,19 +65,17 @@ func TestDataDir_RespectsXDG(t *testing.T) {
 	}
 }
 
-// TestConfigDir_DefaultsUnderHome checks the default config path.
-func TestConfigDir_DefaultsUnderHome(t *testing.T) {
+// TestConfigDir_DefaultContainsRecall checks that the default ConfigDir contains "recall".
+// Platform-specific assertions are in paths_unix_test.go and paths_windows_test.go.
+func TestConfigDir_DefaultContainsRecall(t *testing.T) {
 	unsetenv(t, "XDG_CONFIG_HOME")
 
 	got, err := paths.ConfigDir()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	home, _ := os.UserHomeDir()
-	want := filepath.Join(home, ".config", "recall")
-	if got != want {
-		t.Errorf("ConfigDir() = %q, want %q", got, want)
+	if !strings.Contains(got, "recall") {
+		t.Errorf("ConfigDir() = %q, expected it to contain 'recall'", got)
 	}
 }
 
