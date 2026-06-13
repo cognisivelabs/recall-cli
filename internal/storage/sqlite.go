@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/CognisiveLabs/recall-cli/internal/paths"
@@ -189,17 +188,6 @@ func (s *SQLiteStore) Upsert(cmd Command) error {
 	return err
 }
 
-// splitTags splits a comma-separated tag string into trimmed, lowercase names.
-func splitTags(tags string) []string {
-	var result []string
-	for _, t := range strings.Split(tags, ",") {
-		t = strings.TrimSpace(t)
-		if t != "" {
-			result = append(result, strings.ToLower(t))
-		}
-	}
-	return result
-}
 
 // scanner is the common interface for sql.Row and sql.Rows — both expose Scan.
 type scanner interface {

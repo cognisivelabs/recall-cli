@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/CognisiveLabs/recall-cli/internal/config"
 	"github.com/CognisiveLabs/recall-cli/internal/gitops"
@@ -28,7 +27,7 @@ func NewSyncCmd(store storage.Storage) *cobra.Command {
 				return fmt.Errorf("syncing: %w", err)
 			}
 
-			fmt.Fprintln(os.Stderr, "Sync complete.")
+			fmt.Fprintln(cmd.ErrOrStderr(), "Sync complete.")
 			return nil
 		},
 	}

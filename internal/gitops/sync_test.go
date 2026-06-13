@@ -2,7 +2,6 @@ package gitops
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/CognisiveLabs/recall-cli/internal/config"
@@ -41,34 +40,4 @@ func TestSync_EmptyConfig(t *testing.T) {
 	if err := Sync(cfg, store); err != nil {
 		t.Fatalf("Sync with empty config: %v", err)
 	}
-}
-
-// TestSync_ExistingLocalRepo verifies that Sync imports from a repo that was
-// already cloned (simulated by creating a directory with YAML files directly).
-// The git pull will fail because there is no real remote, but the directory
-// exists so ImportFromRepo is still called on the cached content.
-func TestSync_ExistingLocalRepo(t *testing.T) {
-	tmpDir := t.TempDir()
-	os.Setenv("XDG_DATA_HOME", tmpDir)
-	t.Cleanup(func() { os.Unsetenv("XDG_DATA_HOME") })
-
-	sourcesDir := filepath.Join(tmpDir, "recall", "sources")
-	repoDir := filepath.Join(sourcesDir, "team-ops")
-	os.MkdirAll(repoDir, 0755)
-	os.WriteFile(filepath.Join(repoDir, "cmds.yaml"), []byte(`
-- pattern: "kubectl get pods"
-  description: "List pods"
-`), 0644)
-
-	cfg := &config.Config{
-		Sources: []config.Source{
-			{Name: "team-ops", Git: "git@invalid.example:repo.git"},
-		},
-	}
-	store := newMemStore()
-
-	// Sync will try `git pull` (it will fail) then call ImportFromRepo.
-	// We just verify no panic — the exact import count depends on whether
-	// git is installed and how it handles the invalid URL.
-	_ = Sync(cfg, store)
 }

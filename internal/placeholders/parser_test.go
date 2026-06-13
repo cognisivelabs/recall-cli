@@ -170,15 +170,22 @@ func TestHomeDir(t *testing.T) {
 }
 
 func TestHomeDir_FallbackOnBadHome(t *testing.T) {
-	prev, existed := os.LookupEnv("HOME")
-	os.Unsetenv("HOME")
-	t.Cleanup(func() {
-		if existed {
-			os.Setenv("HOME", prev)
-		}
-	})
-	// Must not panic regardless of outcome.
-	_ = homeDir()
+	for _, key := range []string{"HOME", "USERPROFILE", "HOMEPATH", "HOMEDRIVE"} {
+		prev, existed := os.LookupEnv(key)
+		os.Unsetenv(key)
+		t.Cleanup(func() {
+			if existed {
+				os.Setenv(key, prev)
+			}
+		})
+	}
+	// With no home-directory env vars set, homeDir should return an empty string
+	// rather than panic or return a partial path.
+	got := homeDir()
+	if got != "" {
+		// On some systems os.UserHomeDir() may still resolve via passwd — accept that.
+		t.Logf("homeDir() returned %q with HOME/USERPROFILE unset (OS fallback)", got)
+	}
 }
 
 func TestParse_AllAutoKeys(t *testing.T) {

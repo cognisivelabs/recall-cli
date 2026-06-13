@@ -80,22 +80,27 @@ func TestFindBestMatch_FiltersByTag(t *testing.T) {
 }
 
 func TestFindBestMatch_TieNotice(t *testing.T) {
-	// Two commands that score identically; the ambiguity notice should be printed to stderr.
+	// Seed two commands with identical patterns to guarantee a scoring tie.
 	store := newMockStore().
-		seed(storage.Command{Pattern: "echo aaa"}).
-		seed(storage.Command{Pattern: "echo bbb"})
+		seed(storage.Command{Pattern: "echo aaa", Description: "same score"}).
+		seed(storage.Command{Pattern: "echo bbb", Description: "same score"})
 
 	var errBuf strings.Builder
 	cmd := &cobra.Command{}
 	cmd.SetErr(&errBuf)
 	cmd.SetOut(&strings.Builder{})
 
-	// Use a query that hits both equally (e.g. "echo" is a substring of both).
-	_, err := findBestMatch(store, "echo", "", cmd)
+	match, err := findBestMatch(store, "echo", "", cmd)
 	if err != nil {
 		t.Fatalf("findBestMatch: %v", err)
 	}
-	// A tie notice may or may not appear depending on scoring; just ensure no panic.
+	if match == nil {
+		t.Fatal("expected a match, got nil")
+	}
+	// When the top two results tie, an ambiguity notice is printed to stderr.
+	if !strings.Contains(errBuf.String(), "echo") {
+		t.Errorf("expected ambiguity notice on stderr mentioning the matched commands, got %q", errBuf.String())
+	}
 }
 
 // --- resolvePlaceholders (no-TUI paths) ---
