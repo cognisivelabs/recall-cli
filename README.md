@@ -301,7 +301,9 @@ cmd/recall/          CLI entry point (Cobra commands)
 internal/
   config/            YAML config loading (~/.config/recall/)
   gitops/            Git sync + YAML import
+  paths/             Filesystem location resolution (XDG + env overrides)
   placeholders/      {{placeholder}} parsing and auto-resolution
+  search/            Fuzzy command search and ranking (pure, no I/O)
   shell/             Shell history, integration scripts, command execution
   storage/           SQLite storage layer + tag utilities
   tui/               Bubbletea TUI (dashboard, form, resolver, styles)
@@ -310,10 +312,15 @@ internal/
 
 **Tech stack:** Go, Cobra, Bubbletea, Lipgloss, SQLite.
 
-**Data locations:**
-- Database: `~/.local/share/recall/recall.db`
-- Config: `~/.config/recall/config.yaml`
-- Synced repos: `~/.local/share/recall/sources/`
+**Data locations** (all overridable via environment):
+
+| Path | Default | Override |
+|---|---|---|
+| Database | `~/.local/share/recall/recall.db` | `RECALL_DB_PATH` |
+| Config | `~/.config/recall/config.yaml` | `XDG_CONFIG_HOME` |
+| Synced repos | `~/.local/share/recall/sources/` | `XDG_DATA_HOME` |
+
+On Linux/macOS, `XDG_DATA_HOME` and `XDG_CONFIG_HOME` follow the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) if set.
 
 ## License
 

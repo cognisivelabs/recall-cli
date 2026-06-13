@@ -26,3 +26,4 @@ dist/
 tmp/
 *.db
 .DS_Store
+docs/REFACTORING_PLAN.md
