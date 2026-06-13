@@ -1,6 +1,7 @@
 package placeholders
 
 import (
+	"os"
 	"testing"
 )
 
@@ -133,5 +134,84 @@ func TestAutoResolve_AllAuto(t *testing.T) {
 	}
 	if HasPlaceholders(resolved) {
 		t.Errorf("expected no placeholders in resolved command: %s", resolved)
+	}
+}
+
+// --- auto-resolver helper functions ---
+
+func TestCwd(t *testing.T) {
+	if cwd() == "" {
+		t.Error("cwd() returned empty string")
+	}
+}
+
+func TestDirName(t *testing.T) {
+	if dirName() == "" {
+		t.Error("dirName() returned empty string")
+	}
+}
+
+func TestUserName(t *testing.T) {
+	if userName() == "" {
+		t.Error("userName() returned empty string")
+	}
+}
+
+func TestHostName(t *testing.T) {
+	if hostName() == "" {
+		t.Error("hostName() returned empty string")
+	}
+}
+
+func TestHomeDir(t *testing.T) {
+	if homeDir() == "" {
+		t.Error("homeDir() returned empty string")
+	}
+}
+
+func TestHomeDir_FallbackOnBadHome(t *testing.T) {
+	prev, existed := os.LookupEnv("HOME")
+	os.Unsetenv("HOME")
+	t.Cleanup(func() {
+		if existed {
+			os.Setenv("HOME", prev)
+		}
+	})
+	// Must not panic regardless of outcome.
+	_ = homeDir()
+}
+
+func TestParse_AllAutoKeys(t *testing.T) {
+	autoKeys := []string{"branch", "cwd", "dir", "user", "host", "home"}
+	for _, key := range autoKeys {
+		placeholders := Parse("cmd {{" + key + "}}")
+		if len(placeholders) != 1 {
+			t.Errorf("key %q: expected 1 placeholder, got %d", key, len(placeholders))
+			continue
+		}
+		if placeholders[0].Type != "auto" {
+			t.Errorf("key %q: expected type 'auto', got %q", key, placeholders[0].Type)
+		}
+	}
+}
+
+func TestAutoResolve_NothingToResolve(t *testing.T) {
+	resolved, remaining := AutoResolve("echo hello")
+	if resolved != "echo hello" {
+		t.Errorf("expected unchanged command, got %q", resolved)
+	}
+	if len(remaining) != 0 {
+		t.Errorf("expected 0 remaining, got %d", len(remaining))
+	}
+}
+
+func TestAutoResolve_OnlyTextPlaceholders(t *testing.T) {
+	cmd := "kubectl logs {{service}}"
+	resolved, remaining := AutoResolve(cmd)
+	if resolved != cmd {
+		t.Errorf("text placeholder should not be auto-resolved, got %q", resolved)
+	}
+	if len(remaining) != 1 {
+		t.Errorf("expected 1 remaining placeholder, got %d", len(remaining))
 	}
 }
